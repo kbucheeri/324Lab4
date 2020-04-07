@@ -2,6 +2,8 @@
 .global _start
 .equ CHAR_BUFF_BASE, 0xC9000000
 .equ PIXEL_BUFF_BASE, 0XC8000000
+.equ PIXEL_X_LIMIT,	320
+.equ PIXEL_Y_LIMIT, 240
 CHAR_TABLE: //table of number (HEX) to ASCII values. 
 .word 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 
 .global VGA_clear_char_buff_ASM
@@ -15,7 +17,7 @@ CHAR_TABLE: //table of number (HEX) to ASCII values.
 _start:
 BL VGA_clear_char_buff_ASM
 BL VGA_clear_pixel_buff_ASM
-BL test_byte
+BL test_pixel
 DONE: B DONE
 
 
@@ -155,13 +157,15 @@ push {r2}
 	OUTER_LOOP_TESTC:
 		MOV R0, #0 		//initialize X
 	INNER_LOOP_TESTC:
+		PUSH {LR}
 		BL VGA_write_char_ASM	
+		POP {LR}
 		ADD R2, R2, #1
 		ADD R0, R0, #1
-		CMP R0, #80
+		CMP R0, #79
 		BLE INNER_LOOP_TESTC
 		ADDS R1, R1, #1
-		CMP R1, #60
+		CMP R1, #59
 		BLE	OUTER_LOOP_TESTC
 pop {r2}
 pop {r1}
@@ -177,13 +181,15 @@ push {r2}
 	OUTER_LOOP_TESTB:
 		MOV R0, #0 		//initialize X
 	INNER_LOOP_TESTB:
-		BL VGA_write_byte_ASM	
+		PUSH {LR}
+		BL VGA_write_byte_ASM
+		POP {LR}
 		ADD R2, R2, #1
 		ADD R0, R0, #3
-		CMP R0, #80
+		CMP R0, #79
 		BLE INNER_LOOP_TESTB
 		ADDS R1, R1, #1
-		CMP R1, #60
+		CMP R1, #59
 		BLE	OUTER_LOOP_TESTB
 pop {r2}
 pop {r1}
@@ -191,3 +197,29 @@ pop {r0}
 	BX LR
 
 test_pixel:
+push {r0}
+push {r1}
+push {r2}
+PUSH {R3}
+		MOV R1, #0		//INT Y = 0
+		MOV R2, #0		//CHAR C
+	OUTER_LOOP_TESTP:
+		MOV R0, #0 		//initialize X
+	INNER_LOOP_TESTP:
+	PUSH {LR}
+		BL VGA_draw_point_ASM	
+	POP {LR}
+		ADD R2, R2, #1
+		ADD R0, R0, #1
+		LDR R3, =PIXEL_X_LIMIT 	//HAVE TO USE EQU BECAUSE 320 DOESN'T FIT IN IMM12
+		CMP R0,	R3 	//exit loop if the condition is no longer satisfied
+		BLT INNER_LOOP_TESTP
+		ADDS R1, R1, #1
+		LDR R3, =PIXEL_Y_LIMIT
+		CMP R1, R3
+		BLT	OUTER_LOOP_TESTP
+POP {R3}
+pop {r2}
+pop {r1}
+pop {r0} 
+	BX LR
