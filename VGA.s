@@ -15,6 +15,7 @@ CHAR_TABLE: //table of number (HEX) to ASCII values.
 _start:
 BL VGA_clear_char_buff_ASM
 BL VGA_clear_pixel_buff_ASM
+BL test_byte
 DONE: B DONE
 
 
@@ -146,6 +147,9 @@ VGA_draw_point_ASM:
 	BX LR
 
 test_char:
+push {r0}
+push {r1}
+push {r2}
 		MOV R1, #0		//INT Y = 0
 		MOV R2, #0		//CHAR C
 	OUTER_LOOP_TESTC:
@@ -159,6 +163,31 @@ test_char:
 		ADDS R1, R1, #1
 		CMP R1, #60
 		BLE	OUTER_LOOP_TESTC
+pop {r2}
+pop {r1}
+pop {r0} 
 	BX LR
+
 test_byte:
+push {r0}
+push {r1}
+push {r2}
+		MOV R1, #0		//INT Y = 0
+		MOV R2, #0		//CHAR C
+	OUTER_LOOP_TESTB:
+		MOV R0, #0 		//initialize X
+	INNER_LOOP_TESTB:
+		BL VGA_write_byte_ASM	
+		ADD R2, R2, #1
+		ADD R0, R0, #3
+		CMP R0, #80
+		BLE INNER_LOOP_TESTB
+		ADDS R1, R1, #1
+		CMP R1, #60
+		BLE	OUTER_LOOP_TESTB
+pop {r2}
+pop {r1}
+pop {r0} 
+	BX LR
+
 test_pixel:
