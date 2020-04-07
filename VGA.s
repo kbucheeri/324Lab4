@@ -9,12 +9,12 @@ CHAR_TABLE: //table of number (HEX) to ASCII values.
 .global VGA_write_char_ASM
 .global VGA_write_byte_ASM
 .global VGA_draw_point_ASM
+.global test_char
+.global test_byte
+.global test_pixel
 _start:
 BL VGA_clear_char_buff_ASM
-MOV R0, #0
-MOV R1, #0
-MOV R2, #0xAB
-BL VGA_write_byte_ASM
+BL VGA_clear_pixel_buff_ASM
 DONE: B DONE
 
 
@@ -129,3 +129,36 @@ VGA_write_byte_ASM: //48-57 are numbers, 65-70 are letters
 
 	
 VGA_draw_point_ASM:
+	cmp r0, #320
+	bxgt lr
+	cmp r1, #240
+	bxgt lr 
+	push {r10}
+	push {r3}	
+	//OUTER LOOP COUNTER. I'll left shift, then add. since there are 240 y pixels. 
+	LSL R3, R1, #10				//Y IS SECOND THE GROUP OF BITS, SO WE NEED TO FOFSET IT (240 positions - need only 8 bits!)
+	LDR R10, =PIXEL_BUFF_BASE	//I have to loop through all of the character buffer and set it all to 0. Best to do it in a nested loop.
+	ADD R10, R10, R3			//starting at this row, clear everything.
+	LSL R3, R0, #1				//left shift because pixel addresses goes like base + 2^10 * y + 2 * x
+	STRH R2, [R3, R10]
+	pop {r3}
+	pop {r10}
+	BX LR
+
+test_char:
+		MOV R1, #0		//INT Y = 0
+		MOV R2, #0		//CHAR C
+	OUTER_LOOP_TESTC:
+		MOV R0, #0 		//initialize X
+	INNER_LOOP_TESTC:
+		BL VGA_write_char_ASM	
+		ADD R2, R2, #1
+		ADD R0, R0, #1
+		CMP R0, #80
+		BLE INNER_LOOP_TESTC
+		ADDS R1, R1, #1
+		CMP R1, #60
+		BLE	OUTER_LOOP_TESTC
+	BX LR
+test_byte:
+test_pixel:
