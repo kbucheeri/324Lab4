@@ -4,8 +4,13 @@
 .equ PIXEL_BUFF_BASE, 0XC8000000
 .equ PIXEL_X_LIMIT,	320
 .equ PIXEL_Y_LIMIT, 240
+
 CHAR_TABLE: //table of number (HEX) to ASCII values. 
 .word 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 
+.equ KB_BASE, 0xFF200100
+.equ RVALID_POS, 0x8000
+KB_DATA: .word 0
+.global	read_PS2_data_ASM
 .global VGA_clear_char_buff_ASM
 .global VGA_clear_pixel_buff_ASM
 .global VGA_write_char_ASM
@@ -15,10 +20,26 @@ CHAR_TABLE: //table of number (HEX) to ASCII values.
 .global test_byte
 .global test_pixel
 _start:
+
 BL VGA_clear_char_buff_ASM
 BL VGA_clear_pixel_buff_ASM
-BL test_pixel
-DONE: B DONE
+	MOV R0, #0	//INITIALIZE THE COORDINATES TO (0,0) FOR WRITING ON THE SCREEN.
+	MOV R1, #0	
+MAIN:
+	PUSH {R0}	//push the current x position onto the top of the stack because r0 will be temporarily be used for the keyboard subroutine.
+	LDR R0, =KB_DATA //the address where data from the PS/2 will be loaded to.
+	BL read_PS2_data_ASM
+	CMP R0, #0
+	POP {R0}	//POP since we won't need the valid bit any more in this iteration.
+	BEQ MAIN	//CHECK IF DATA IS VALID, BRANCH BACK IF IT IS INVALID
+	LDR R2, =KB_DATA
+	LDR R2, [R2]
+	BL VGA_write_byte_ASM
+	CMP R0, #80
+	ADDLE R0, R0, #3
+	MOVGT R0, #0	//MOVE TO NEXT LINE
+	ADDGT R1, #1
+	B MAIN
 
 
 VGA_clear_char_buff_ASM:		//TODO: add callee save convention.
@@ -44,8 +65,6 @@ INNER_LOOP_DONE_C:
 	BGT OUTER_LOOP_C
 	POP {R10}
 	BX LR
-
-
 VGA_clear_pixel_buff_ASM:
 	
 	MOV R0, #240				//OUTER LOOP COUNTER. I'll left shift, then add. since there are 240 y pixels. 
@@ -67,8 +86,6 @@ INNER_LOOP_DONE_P:
 	CMP R0, #0
 	BGT OUTER_LOOP_P
 	BX LR
-
-
 VGA_write_char_ASM: 
 	CMP R0, #80		//compare the coordinates to the max to ensure they are valid.
 	BXGT LR
@@ -125,8 +142,6 @@ VGA_write_byte_ASM: //48-57 are numbers, 65-70 are letters
 	POP {R2}
 	POP {R1}
 	BX LR
-
-
 	
 VGA_draw_point_ASM:
 	cmp r0, #320
@@ -146,9 +161,9 @@ VGA_draw_point_ASM:
 	BX LR
 
 test_char:
-push {r0}
-push {r1}
-push {r2}
+	push {r0}
+	push {r1}
+	push {r2}
 		MOV R1, #0		//INT Y = 0
 		MOV R2, #0		//CHAR C
 	OUTER_LOOP_TESTC:
@@ -164,9 +179,9 @@ push {r2}
 		ADDS R1, R1, #1
 		CMP R1, #59
 		BLE	OUTER_LOOP_TESTC
-pop {r2}
-pop {r1}
-pop {r0} 
+	pop {r2}
+	pop {r1}
+	pop {r0} 
 	BX LR
 
 test_byte:
@@ -219,4 +234,24 @@ POP {R3}
 pop {r2}
 pop {r1}
 pop {r0} 
+	BX LR
+
+read_PS2_data_ASM:
+	PUSH {R1}		//CALLEE SAVE
+	PUSH {R2}
+	LDR R1, =KB_BASE
+	LDR R1, [R1] //LOAD THE KEYBOARD WORD.
+	LDR R2, =RVALID_POS //load the number containing a single bit in the position of RVALID_POS
+	TST R1, R2 //TEST TO CHECK IF RVALID IS ON
+	BEQ	INVALID	//RVALID = 0 SO MUST HAVE BEEN INVALID
+VALID:
+	AND R1, R1, #0xFF //keep only the last byte
+	STRB R1, [R0]
+	MOV R0, #1	 
+	B DONE 
+INVALID:
+	MOV R0, #0
+DONE:
+	POP {R2}
+	POP {R1}
 	BX LR
