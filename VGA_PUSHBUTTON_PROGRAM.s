@@ -9,6 +9,9 @@ CHAR_TABLE: //table of number (HEX) to ASCII values.
 .word 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46 
 .equ KB_BASE, 0xFF200100
 .equ RVALID_POS, 0x8000
+.equ PUSHDRESS, 0xFF200050
+.equ EDGECAP, 0xFF20005C
+.equ INTMASK, 0xFF200058
 KB_DATA: .word 0
 .global	read_PS2_data_ASM
 .global VGA_clear_char_buff_ASM
@@ -19,33 +22,45 @@ KB_DATA: .word 0
 .global test_char
 .global test_byte
 .global test_pixel
+
+.global read_PB_data_ASM
+.global PB_data_is_pressed_ASM
+.global read_PB_edgecap_ASM 
+.global PB_edgecap_is_pressed_ASM
+.global PB_clear_edgecap_ASM
+.global enable_PB_INT_ASM
+.global disable_PB_INT_ASM
+
 _start:
 
 BL VGA_clear_char_buff_ASM
 BL VGA_clear_pixel_buff_ASM
-	MOV R0, #0	//INITIALIZE THE COORDINATES TO (0,0) FOR WRITING ON THE SCREEN.
-	MOV R1, #0	
 MAIN:
-	PUSH {R0}	//push the current x position onto the top of the stack because r0 will be temporarily be used for the keyboard subroutine.
-	LDR R0, =KB_DATA //the address where data from the PS/2 will be loaded to.
-	BL read_PS2_data_ASM
-	CMP R0, #0
-	POP {R0}	//POP since we won't need the valid bit any more in this iteration.
-	BEQ MAIN	//CHECK IF DATA IS VALID, BRANCH BACK IF IT IS INVALID
-	LDR R2, =KB_DATA
-	LDR R2, [R2]
-	BL VGA_write_byte_ASM
-	CMP R0, #77
-	ADDLE R0, R0, #3
-	BLE MAIN
-	MOV R0, #0	//MOVE TO NEXT LINE IF THE X AXIS IS FULL
-	CMP R1, #59	
-	ADDLT R1, #1 //if did not exceed y limit yet
-	BLT MAIN
-	MOV R1, #0	//if exceeded y limit, reset to 0 and clear the screen
-	BLGE VGA_clear_char_buff_ASM
-	
+	BL read_PB_edgecap_ASM
+	TST R0, #1
+	BNE PB_ZERO
+	TST R0, #2
+	BNE PB_ONE 
+	TST R0, #4
+	BNE PB_TWO
+	TST R0, #8
+	BNE PB_THREE 
 	B MAIN
+PB_THREE:	BL VGA_clear_char_buff_ASM
+			BL VGA_clear_pixel_buff_ASM
+			BL PB_clear_edgecap_ASM
+PB_TWO:
+		BL test_pixel
+		BL PB_clear_edgecap_ASM		
+		B MAIN
+PB_ONE:
+		BL test_char
+		BL PB_clear_edgecap_ASM		
+		B MAIN
+PB_ZERO:
+		BL test_byte
+		BL PB_clear_edgecap_ASM		
+		B MAIN
 
 
 VGA_clear_char_buff_ASM:		//TODO: add callee save convention.
@@ -260,4 +275,45 @@ INVALID:
 DONE:
 	POP {R2}
 	POP {R1}
+	BX LR
+
+
+read_PB_data_ASM:
+	LDR R0, =PUSHDRESS
+	LDR R0, [R0]
+	AND R0, R0, #0xf
+	BX LR
+PB_data_is_pressed_ASM: //only returns the status bit of the button that is passed in the function.
+	LDR R1, =PUSHDRESS
+	LDR R1, [R1]
+	AND R0, R1, R0 //R0 is input, anding to only get the desired value at the specific pushbutton passed. already in r0 so we're returning that.
+	BX LR
+read_PB_edgecap_ASM: 
+	LDR R0, =EDGECAP
+	LDR R0, [R0]
+	AND R0, R0, #0xf
+	BX LR
+PB_edgecap_is_pressed_ASM:
+	LDR R1, =EDGECAP
+	LDR R1, [R1]
+	AND R0, R1, R0 //R0 is input, anding to only get the desired value at the specific pushbutton passed. already in r0 so we're returning that.
+	BX LR
+PB_clear_edgecap_ASM:
+	LDR R2, =EDGECAP
+	LDR R1, [R2]	//R1 contains state of the buttons.
+	AND R0, R0, #0XF //keep only the first 4 bits of R0, the input.
+	AND R1, R1, R0 //R0 is bits to clear, so we ANDN'T to clear those bits and re-store them in memory.
+	STR R1, [R2]	//store the cleared value once more
+	BX LR
+enable_PB_INT_ASM:
+	LDR R2, =INTMASK
+	LDR R1, [R2]
+	ORR R1, R1, R0 //R0 is bits to clear, so we ANDN'T to clear those bits and re-store them in memory.
+	STR R1, [R2]	//store the cleared value once more
+	BX LR
+disable_PB_INT_ASM:
+	LDR R2, =INTMASK
+	LDR R1, [R2]
+	BIC R1, R1, R0 //R0 is bits to clear, so we ANDN'T to clear those bits and re-store them in memory.
+	STR R1, [R2]	//store the cleared value once more
 	BX LR
