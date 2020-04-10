@@ -48,17 +48,28 @@ MAIN:
 	B MAIN
 PB_THREE:	BL VGA_clear_char_buff_ASM
 			BL VGA_clear_pixel_buff_ASM
+			MOV R0, #0X8
 			BL PB_clear_edgecap_ASM
+			B MAIN
 PB_TWO:
+		BL VGA_clear_char_buff_ASM
+		BL VGA_clear_pixel_buff_ASM
 		BL test_pixel
+		MOV R0, #0X4
 		BL PB_clear_edgecap_ASM		
 		B MAIN
 PB_ONE:
+		BL VGA_clear_char_buff_ASM
+		BL VGA_clear_pixel_buff_ASM
 		BL test_char
+		MOV R0, #0X2
 		BL PB_clear_edgecap_ASM		
 		B MAIN
 PB_ZERO:
+		BL VGA_clear_char_buff_ASM
+		BL VGA_clear_pixel_buff_ASM
 		BL test_byte
+		MOV R0, #0X1
 		BL PB_clear_edgecap_ASM		
 		B MAIN
 
